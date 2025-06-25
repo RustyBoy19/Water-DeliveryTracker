@@ -11,7 +11,6 @@
       background-color: #a2d4f2;
       font-family: Arial, sans-serif;
     }
-
     .container {
       max-width: 400px;
       margin: 60px auto;
@@ -20,13 +19,11 @@
       padding: 20px;
       box-shadow: 0 0 15px rgba(0,0,0,0.2);
     }
-
     label {
       display: block;
       margin-top: 15px;
     }
-
-    select, textarea, button {
+    select, textarea, button, input[type="text"] {
       width: 100%;
       padding: 10px;
       margin-top: 5px;
@@ -34,7 +31,6 @@
       border: 1px solid #ccc;
       box-sizing: border-box;
     }
-
     button {
       background: #28a745;
       color: white;
@@ -42,7 +38,6 @@
       border: none;
       margin-top: 20px;
     }
-
     button:hover {
       background: #218838;
     }
@@ -57,17 +52,11 @@
         <option value="Sergio">Sergio</option>
       </select>
 
-      <label for="siteDisplay">Location</label>
-      <input type="text" id="siteDisplay" disabled style="background-color:#eee">
-      <input type="hidden" id="site" name="site">
-
-      
-<label for="deliveryLocation">Delivery Site</label>
-<select id="deliveryLocation" name="deliveryLocation" required>
-  <option value="Mt Signal">Mt Signal</option>
-  <option value="Solar Gen 2">Solar Gen 2</option>
-</select>
-
+      <label for="deliveryLocation">Delivery Site</label>
+      <select id="deliveryLocation" name="deliveryLocation" required>
+        <option value="Mt Signal">Mt Signal</option>
+        <option value="Solar Gen 2">Solar Gen 2</option>
+      </select>
 
       <label for="load">Load Amount</label>
       <select id="load" name="load" required>
@@ -77,22 +66,71 @@
       <label for="notes">Notes</label>
       <textarea id="notes" name="notes" rows="4" placeholder="Enter notes here..."></textarea>
 
-      
-    <input type="hidden" id="lat" name="lat">
-    <input type="hidden" id="lng" name="lng">
-    <input type="hidden" id="city" name="city">
-    <button type="submit">Submit</button>
-    
+      <label for="siteDisplay">Location</label>
+      <input type="text" id="siteDisplay" disabled style="background-color:#eee">
+      <input type="hidden" id="site" name="site">
+      <input type="hidden" id="lat" name="lat">
+      <input type="hidden" id="lng" name="lng">
+
+      <button type="submit">Submit</button>
     </form>
   </div>
 
   <script>
+    function haversine(lat1, lon1, lat2, lon2) {
+      function toRad(x) { return x * Math.PI / 180; }
+      var R = 3958.8;
+      var dLat = toRad(lat2 - lat1);
+      var dLon = toRad(lon2 - lon1);
+      var a = Math.sin(dLat / 2) ** 2 +
+              Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+              Math.sin(dLon / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    function setApproxLocation(lat, lng) {
+      const locations = [
+        { name: "Water Hub", lat: 32.691528, lng: -115.493170, radius: 1000 / 5280 },
+        { name: "Mt Signal", lat: 32.676145, lng: -115.608243, radius: 3 },
+        { name: "Solar Gen 2", lat: 33.111293, lng: -115.467198, radius: 4 }
+      ];
+
+      for (const loc of locations) {
+        const distance = haversine(lat, lng, loc.lat, loc.lng);
+        if (distance <= loc.radius) {
+          document.getElementById('site').value = loc.name;
+          document.getElementById('siteDisplay').value = loc.name;
+          return;
+        }
+      }
+      document.getElementById('site').value = 'Unknown';
+      document.getElementById('siteDisplay').value = 'Unknown';
+    }
+
+    window.addEventListener('load', () => {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            const lat = pos.coords.latitude;
+            const lng = pos.coords.longitude;
+            document.getElementById('lat').value = lat;
+            document.getElementById('lng').value = lng;
+            setApproxLocation(lat, lng);
+          },
+          (err) => {
+            console.warn('Geolocation error:', err.message);
+          },
+          { enableHighAccuracy: true, timeout: 10000 }
+        );
+      }
+    });
+
     const form = document.getElementById('logForm');
     form.addEventListener('submit', function(e) {
       e.preventDefault();
 
       const formData = new FormData(form);
-      const url = "https://script.google.com/macros/s/AKfycbw8EWwnVmVcxXxOrZ8Y6ppy_zE0xeybfaEt8vee0MO-LmftjFqZpOEcHWmcGVcjIcHZ/exec"; // Replace with your actual URL
+      const url = "https://script.google.com/macros/s/AKfycbw8EWwnVmVcxXxOrZ8Y6ppy_zE0xeybfaEt8vee0MO-LmftjFqZpOEcHWmcGVcjIcHZ/exec";
 
       fetch(url, {
         method: 'POST',
@@ -102,94 +140,13 @@
       .then(data => {
         alert("Submitted!");
         form.reset();
+        document.getElementById('siteDisplay').value = '';
       })
       .catch(error => {
+        console.error(error);
         alert("Error: " + error.message);
       });
     });
   </script>
-
-<script>
-  window.addEventListener('load', () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude.toFixed(6);
-          const lng = pos.coords.longitude.toFixed(6);
-          document.getElementById('lat').value = lat;
-          document.getElementById('lng').value = lng;
-
-          fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`)
-            .then(response => response.json())
-            .then(data => {
-              const city = data.address.city || data.address.town || data.address.village || data.address.hamlet || '';
-              document.getElementById('city').value = city;
-            })
-            .catch(error => console.warn('City lookup failed:', error));
-        },
-        (err) => {
-          console.warn('Geolocation error:', err.message);
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    } else {
-      console.warn('Geolocation not supported');
-    }
-  });
-
-<script>
-  function haversine(lat1, lon1, lat2, lon2) {
-    function toRad(x) { return x * Math.PI / 180; }
-    var R = 3958.8; // Earth radius in miles
-    var dLat = toRad(lat2 - lat1);
-    var dLon = toRad(lon2 - lon1);
-    var a = Math.sin(dLat / 2) ** 2 +
-            Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-            Math.sin(dLon / 2) ** 2;
-    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  }
-
-  function setApproxLocation(lat, lng) {
-    const locations = [
-      { name: "Water Hub", lat: 32.691528, lng: -115.493170, radius: 1000 / 5280 },
-      { name: "Mt Signal", lat: 32.676145, lng: -115.608243, radius: 3 },
-      { name: "Solar Gen 2", lat: 33.111293, lng: -115.467198, radius: 4 }
-    ];
-
-    for (const loc of locations) {
-      const distance = haversine(lat, lng, loc.lat, loc.lng);
-      if (distance <= loc.radius) {
-        document.getElementById('city').value = loc.name;
-        document.getElementById('site').value = loc.name;
-        document.getElementById('siteDisplay').value = loc.name;
-        return;
-      }
-    }
-
-    document.getElementById('city').value = 'Unknown';
-    document.getElementById('site').value = 'Unknown';
-    document.getElementById('siteDisplay').value = 'Unknown';
-  }
-
-  window.addEventListener('load', () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          const lat = pos.coords.latitude;
-          const lng = pos.coords.longitude;
-          document.getElementById('lat').value = lat;
-          document.getElementById('lng').value = lng;
-          setApproxLocation(lat, lng);
-        },
-        (err) => {
-          console.warn('Geolocation error:', err.message);
-        },
-        { enableHighAccuracy: true, timeout: 10000 }
-      );
-    } else {
-      console.warn('Geolocation not supported');
-    }
-  });
-</script>
 </body>
 </html>
